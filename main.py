@@ -208,28 +208,28 @@ class ProduzioneAgricolaAvanzata:
         evento_meteo = None
         if self.config["eventi_meteo_attivi"]:
             evento_meteo = self.genera_evento_meteo()
-            print(f"\n🌤️  EVENTO METEOROLOGICO: {evento_meteo[0].upper()}")
+            print(f"\n EVENTO METEOROLOGICO: {evento_meteo[0].upper()}")
             print(f"   {evento_meteo[2]}")
             print(f"   Fattore su rese: {evento_meteo[1]}")
         else:
-            print("\n🌤️ Eventi meteorologici: DISATTIVI")
+            print("\n Eventi meteorologici: DISATTIVI")
         
         # Fase 2: generazione casuale delle quantità prodotte
         quantita, evento_meteo = self.genera_quantita_casuali(variazione_percentuale, evento_meteo)
         
-        print("\n📊 [1] QUANTITÀ PRODOTTE (tonnellate):")
+        print("\n [1] QUANTITÀ PRODOTTE (tonnellate):")
         for p, q in quantita.items():
             print(f"   {p.capitalize()}: {q} t")
         
         # Fase 3: calcolo tempi individuali
         tempi = self.calcola_tempi_produzione(quantita)
         
-        print("\n⏱️ [2] TEMPI DI RACCOLTA INDIVIDUALI:")
+        print("\n [2] TEMPI DI RACCOLTA INDIVIDUALI:")
         for prodotto, dati in tempi.items():
             print(f"   {prodotto.capitalize()}: {dati['ore_lavorative']} ore ({dati['giorni_lavorativi']} giorni)")
         
         # Fase 4: tempo complessivo in base alla sequenza produttiva
-        print(f"\n🔄 [3] SEQUENZA PRODUTTIVA: {sequenza_produttiva.upper()}")
+        print(f"\n [3] SEQUENZA PRODUTTIVA: {sequenza_produttiva.upper()}")
         
         if sequenza_produttiva == "sequenziale":
             ore_totali = sum(d["ore_lavorative"] for d in tempi.values())
@@ -247,14 +247,14 @@ class ProduzioneAgricolaAvanzata:
             raise ValueError("Sequenza produttiva non valida. Usare 'parallela' o 'sequenziale'")
         
         # Fase 5: Analisi economica
-        print("\n💰 [4] ANALISI ECONOMICA:")
+        print("\n [4] ANALISI ECONOMICA:")
         economia = self.calcola_analisi_economica(quantita, tempi, sequenza_produttiva)
         print(f"   Ricavi totali:     {economia['ricavi_totali']:,.2f} €")
         print(f"   Costi produzione:  {economia['costi_produzione']:,.2f} €")
         print(f"   Costi manodopera:  {economia['costi_manodopera']:,.2f} €")
         print(f"   Costi mezzi:       {economia['costi_mezzi']:,.2f} €")
         print(f"   Costi totali:      {economia['costi_totali']:,.2f} €")
-        print(f"   📈 Profitto:        {economia['profitto']:,.2f} €")
+        print(f"   Profitto:        {economia['profitto']:,.2f} €")
         print(f"   Margine:           {economia['margine_profitto']:.1f}%")
         
         # Salva risultato
@@ -309,7 +309,7 @@ class ProduzioneAgricolaAvanzata:
         
         df = pd.DataFrame(data)
         df.to_csv(filename, index=False, encoding="utf-8")
-        print(f"\n💾 Report salvato in: {filename}")
+        print(f"\n Report salvato in: {filename}")
     
     def genera_grafico_produzione(self, risultato: Dict):
         """Genera un grafico a barre della produzione."""
@@ -352,7 +352,7 @@ class ProduzioneAgricolaAvanzata:
         
         filename = f"grafico_{self.data_simulazione.strftime('%Y%m%d_%H%M%S')}.png"
         plt.savefig(filename, dpi=300, bbox_inches="tight")
-        print(f"📊 Grafico salvato in: {filename}")
+        print(f" Grafico salvato in: {filename}")
         plt.show()
     
     def report_completo(self):
@@ -366,7 +366,7 @@ class ProduzioneAgricolaAvanzata:
         print("="*70)
         
         for i, sim in enumerate(self.storico_simulazioni, 1):
-            print(f"\n📌 Simulazione {i}:")
+            print(f"\n Simulazione {i}:")
             print(f"   Data: {sim['timestamp']}")
             print(f"   Sequenza: {sim['sequenza'].upper()}")
             print(f"   Evento meteo: {sim['evento_meteo']} (x{sim['fattore_evento']})")
@@ -375,7 +375,7 @@ class ProduzioneAgricolaAvanzata:
         
         # Statistiche riassuntive
         profitti = [sim["economia"]["profitto"] for sim in self.storico_simulazioni]
-        print(f"\n📊 STATISTICHE:")
+        print(f"\n STATISTICHE:")
         print(f"   Profitto medio: {np.mean(profitti):,.2f} €")
         print(f"   Profitto max: {max(profitti):,.2f} €")
         print(f"   Profitto min: {min(profitti):,.2f} €")
@@ -384,7 +384,7 @@ class ProduzioneAgricolaAvanzata:
 # ========== INTERFACCIA INTERATTIVA A MENU ==========
 def menu_interattivo():
     print("="*60)
-    print("🌾 SIMULATORE PRODUZIONE AGRICOLA - VERSIONE ESTESA 🌻")
+    print("SIMULATORE PRODUZIONE AGRICOLA")
     print("="*60)
     
     nome = input("\nInserisci nome azienda (default: AgroVerde Bio): ").strip()
@@ -397,18 +397,18 @@ def menu_interattivo():
         print("\n" + "-"*40)
         print("MENU PRINCIPALE")
         print("-"*40)
-        print("1. 🚜 Simula produzione (configurazione attuale)")
-        print("2. ⚙️ Configura parametri produzione")
-        print("3. 📊 Visualizza storico simulazioni")
-        print("4. 💾 Esporta report completo")
-        print("5. 🌤️ Attiva/Disattiva eventi meteo")
-        print("6. 📈 Esegui simulazione multipla")
-        print("7. ❌ Esci")
+        print("1.  Simula produzione (configurazione attuale)")
+        print("2.  Configura parametri produzione")
+        print("3.  Visualizza storico simulazioni")
+        print("4.  Esporta report completo")
+        print("5.  Attiva/Disattiva eventi meteo")
+        print("6.  Esegui simulazione multipla")
+        print("7.  Esci")
         
         scelta = input("\nScegli un'opzione (1-7): ").strip()
         
         if scelta == "1":
-            print("\nScegli sequenza produttiva:")
+            print("\n Scegli sequenza produttiva:")
             print("1. Parallela (raccolta contemporanea)")
             print("2. Sequenziale (un prodotto dopo l'altro)")
             seq_choice = input("Opzione (default 1): ").strip()
@@ -421,7 +421,7 @@ def menu_interattivo():
             input("\nPremi INVIO per continuare...")
         
         elif scelta == "2":
-            print("\n⚙️ CONFIGURAZIONE PARAMETRI")
+            print("\n CONFIGURAZIONE PARAMETRI")
             print("1. Modifica capacità giornaliera (ore)")
             print("2. Modifica costo manodopera (€/ora)")
             print("3. Modifica superficie coltivata")
@@ -477,7 +477,7 @@ def menu_interattivo():
                 df = pd.DataFrame(df_list)
                 filename = f"storico_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                 df.to_csv(filename, index=False, encoding="utf-8")
-                print(f"\n✅ Storico salvato in: {filename}")
+                print(f"\nStorico salvato in: {filename}")
             else:
                 print("Nessuna simulazione da esportare.")
             input("\nPremi INVIO per continuare...")
@@ -485,11 +485,11 @@ def menu_interattivo():
         elif scelta == "5":
             stato = not azienda.config["eventi_meteo_attivi"]
             azienda.configura_parametri(eventi_meteo=stato)
-            print(f"✅ Eventi meteo: {'ATTIVI' if stato else 'DISATTIVI'}")
+            print(f"Eventi meteo: {'ATTIVI' if stato else 'DISATTIVI'}")
             input("\nPremi INVIO per continuare...")
         
         elif scelta == "6":
-            print("\n📈 SIMULAZIONE MULTIPLA")
+            print("\nSIMULAZIONE MULTIPLA")
             n_sim = int(input("Numero di simulazioni da eseguire (1-100): ") or 5)
             n_sim = min(max(n_sim, 1), 100)
             
@@ -508,7 +508,7 @@ def menu_interattivo():
                 profitti.append(risultato["economia"]["profitto"])
             
             print("\n" + "="*50)
-            print(f"📊 RISULTATI SIMULAZIONE MULTIPLA ({n_sim} simulazioni)")
+            print(f"RISULTATI SIMULAZIONE MULTIPLA ({n_sim} simulazioni)")
             print("="*50)
             print(f"Profitto medio:     {np.mean(profitti):,.2f} €")
             print(f"Profitto mediano:   {np.median(profitti):,.2f} €")
@@ -532,11 +532,11 @@ def menu_interattivo():
             input("\nPremi INVIO per continuare...")
         
         elif scelta == "7":
-            print("\n👋 Grazie per aver usato il simulatore. Arrivederci!")
+            print("\nGrazie per aver usato il simulatore. Arrivederci!")
             break
         
         else:
-            print("❌ Opzione non valida! Riprova.")
+            print("Opzione non valida! Riprova.")
 
 # ========== ESECUZIONE ==========
 if __name__ == "__main__":
