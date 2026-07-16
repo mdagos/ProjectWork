@@ -1,0 +1,4 @@
+Timestamp,Azienda,Sequenza,Evento_meteo,Prodotto,Quantita_t,Ore_raccolta,Giorni_raccolta,Tempo_totale_giorni,Ricavi_euro,Costi_totali_euro,Profitto_euro,Margine_percentuale
+2026-07-11T12:35:07.042353,AgroVerde Bio,parallela,Normale,grano,142.5,114.0,14.25,24.88125,174355.0,99131.25,75223.75,43.14
+2026-07-11T12:35:07.042353,AgroVerde Bio,parallela,Normale,pomodoro,663.5,199.05,24.88,24.88125,174355.0,99131.25,75223.75,43.14
+2026-07-11T12:35:07.042353,AgroVerde Bio,parallela,Normale,girasole,48.25,57.9,7.24,24.88125,174355.0,99131.25,75223.75,43.14
