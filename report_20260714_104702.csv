@@ -1,4 +1,0 @@
-Timestamp,Azienda,Sequenza,Evento_meteo,Prodotto,Quantita_t,Ore_raccolta,Giorni_raccolta,Tempo_totale_giorni,Ricavi_euro,Costi_totali_euro,Profitto_euro,Margine_percentuale
-2026-07-14T10:47:02.240276,AgroVerde Bio,sequenziale,Grandine,grano,100.26,80.21,10.03,32.2325,121620.0,69270.2,52349.8,43.04
-2026-07-14T10:47:02.240276,AgroVerde Bio,sequenziale,Grandine,pomodoro,466.75,140.03,17.5,32.2325,121620.0,69270.2,52349.8,43.04
-2026-07-14T10:47:02.240276,AgroVerde Bio,sequenziale,Grandine,girasole,31.35,37.62,4.7,32.2325,121620.0,69270.2,52349.8,43.04

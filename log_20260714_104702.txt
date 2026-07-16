@@ -1,6 +1,0 @@
-[2026-07-14 10:47:21] Capacità giornaliera impostata a 8.0 ore
-[2026-07-14 10:47:32] Eventi meteorologici: Disattivi
-[2026-07-14 10:47:43] Eventi meteorologici: Attivi
-[2026-07-14 10:47:54] Simulazione completata: parallela, profitto: 72929.95€
-[2026-07-14 10:47:54] Simulazione completata: parallela, profitto: 61583.35€
-[2026-07-14 10:48:37] Simulazione completata: sequenziale, profitto: 52349.80€
