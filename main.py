@@ -15,9 +15,98 @@ from reportlab.lib.styles import getSampleStyleSheet
 import threading
 import os
 
-# ==========================================
+# =========================================
+# CLASSE RISORSA CONDIVISA (NUOVA)
+# =========================================
+class RisorsaCondivisa:
+    """
+    Modella una risorsa condivisa (es. mietitrebbia) con capacità limitata
+    e sistema di priorità per l'allocazione tra i diversi prodotti.
+    """
+    def __init__(self, nome="Mietitrebbia", capacita_oraria=8, tempo_setup=0.5):
+        self.nome = nome
+        self.capacita_oraria = capacita_oraria
+        self.tempo_setup = tempo_setup
+        self.coda_priorita = []
+        self.ultima_pianificazione = None
+
+    def calcola_priorita(self, prodotto, quantita, prezzo, tempo_raccolta, giorni_scadenza=10):
+        """
+        Calcola il punteggio di priorità per un prodotto secondo valutazioni realistiche.
+
+        Formula:
+        priorità = (prezzo_vendita / tempo_raccolta_base) * fattore_deperibilità * fattore_quantità
+
+        - prezzo_vendita / tempo_raccolta_base: valore economico per ora di utilizzo
+        - fattore_deperibilità: cresce con la vicinanza alla scadenza
+        - fattore_quantità: tiene conto della quantità prodotta
+        """
+        if tempo_raccolta <= 0:
+            return 0
+
+        valore_orario = prezzo / tempo_raccolta
+
+        # Fattore deperibilità: più giorni rimanenti, minore urgenza
+        fattore_deperibilita = 1 + (1 / (giorni_scadenza + 1))
+
+        # Fattore quantità: logaritmico per smorzare l'effetto di grandi quantità
+        fattore_quantita = 1 + (quantita / 100)
+
+        priorita = valore_orario * fattore_deperibilita * fattore_quantita
+        return round(priorita, 2)
+
+    def assegna_risorsa(self, richieste):
+        """
+        Assegna la risorsa ai prodotti in base alla priorità.
+
+        richieste: lista di tuple (prodotto, ore_necessarie, priorita)
+        Restituisce un dizionario con l'ordine di esecuzione e i tempi.
+        """
+        # Ordina per priorità decrescente (coda di priorità)
+        richieste_ordinate = sorted(richieste, key=lambda x: x[2], reverse=True)
+
+        pianificazione = []
+        tempo_totale = 0
+        prodotto_precedente = None
+
+        for prodotto, ore, priorita in richieste_ordinate:
+            # Aggiungi tempo di setup se il prodotto cambia
+            setup = 0
+            if prodotto_precedente is not None and prodotto_precedente != prodotto:
+                setup = self.tempo_setup
+                tempo_totale += setup
+
+            tempo_inizio = tempo_totale
+            tempo_totale += ore
+
+            pianificazione.append({
+                "prodotto": prodotto,
+                "ore_raccolta": round(ore, 2),
+                "priorita": priorita,
+                "setup": setup,
+                "tempo_inizio": round(tempo_inizio, 2),
+                "tempo_fine": round(tempo_totale, 2)
+            })
+            prodotto_precedente = prodotto
+
+        risultato = {
+            "pianificazione": pianificazione,
+            "tempo_totale_ore": round(tempo_totale, 2),
+            "giorni_necessari": round(tempo_totale / self.capacita_oraria, 2),
+            "ordine_prodotti": [p["prodotto"] for p in pianificazione]
+        }
+        self.ultima_pianificazione = risultato
+        return risultato
+
+    def reset(self):
+        """Ripristina lo stato della risorsa."""
+        self.coda_priorita = []
+        self.ultima_pianificazione = None
+
+
+# =========================================
 # CLASSE DI SIMULAZIONE
-# ==========================================
+# =========================================
 class ProduzioneAgricola:
     def __init__(self, nome_azienda="AgroVerde Bio"):
         self.nome_azienda = nome_azienda
@@ -33,9 +122,12 @@ class ProduzioneAgricola:
             "capacita_giornaliera_ore": 8,
             "costo_orario_manodopera": 25,
             "costo_manutenzione_mezzi": 500,
-            "eventi_meteo_attivi": True
+            "eventi_meteo_attivi": True,
+            "giorni_scadenza": {"grano": 12, "pomodoro": 5, "girasole": 8}
         }
         self.storico = []
+        # Estensione: risorsa condivisa
+        self.risorsa = RisorsaCondivisa()
 
     def genera_evento_meteo(self):
         if not self.config["eventi_meteo_attivi"]:
@@ -95,6 +187,63 @@ class ProduzioneAgricola:
             "margine_profitto": round(margine, 2)
         }
 
+    # =========================================
+    # NUOVO METODO: SIMULAZIONE CON RISORSA CONDIVISA
+    # =========================================
+    def simula_con_risorsa(self, var_perc=20, evento=None):
+        """
+        Esegue la simulazione considerando una risorsa condivisa
+        con allocazione basata su priorità.
+        """
+        if evento is None:
+            evento = self.genera_evento_meteo()
+
+        quantita, _ = self.genera_quantita_casuali(var_perc, evento)
+        tempi = self.calcola_tempi(quantita)
+
+        # Preparo le richieste per la risorsa
+        richieste = []
+        dettagli_priorita = []
+        for prodotto, qta in quantita.items():
+            ore_necessarie = qta * self.prodotti[prodotto]["tempo_raccolta_base"]
+            prezzo = self.prodotti[prodotto]["prezzo_vendita"]
+            tempo_base = self.prodotti[prodotto]["tempo_raccolta_base"]
+            giorni_scadenza = self.config["giorni_scadenza"].get(prodotto, 10)
+            priorita = self.risorsa.calcola_priorita(
+                prodotto, qta, prezzo, tempo_base, giorni_scadenza
+            )
+            richieste.append((prodotto, ore_necessarie, priorita))
+            dettagli_priorita.append({
+                "prodotto": prodotto,
+                "quantita": qta,
+                "valore_orario": round(prezzo / tempo_base, 2),
+                "giorni_scadenza": giorni_scadenza,
+                "priorita": priorita
+            })
+
+        # Assegna la risorsa
+        risultato_risorsa = self.risorsa.assegna_risorsa(richieste)
+
+        # Calcolo economia basata sulle quantità totali
+        economia = self.calcola_economia(quantita, tempi)
+
+        risultato = {
+            "timestamp": self.data_simulazione.isoformat(),
+            "sequenza": "con_risorsa",
+            "evento_meteo": evento[0],
+            "fattore_evento": evento[1],
+            "quantita": quantita,
+            "tempi": tempi,
+            "economia": economia,
+            "pianificazione_risorsa": risultato_risorsa["pianificazione"],
+            "tempo_totale_risorsa": risultato_risorsa["tempo_totale_ore"],
+            "giorni_risorsa": risultato_risorsa["giorni_necessari"],
+            "ordine_prodotti": risultato_risorsa["ordine_prodotti"],
+            "dettagli_priorita": dettagli_priorita
+        }
+        self.storico.append(risultato)
+        return risultato
+
     async def simula(self, sequenza="parallela", var_perc=20):
         await asyncio.sleep(0.3)
         evento = self.genera_evento_meteo()
@@ -120,9 +269,10 @@ class ProduzioneAgricola:
         self.storico.append(risultato)
         return risultato
 
-# ==========================================
+
+# =========================================
 # GESTIONE DATABASE SQLITE (ASINCRONA)
-# ==========================================
+# =========================================
 class DatabaseManagerAsync:
     def __init__(self, db_path="simulazione_agricola.db"):
         self.db_path = db_path
@@ -167,6 +317,7 @@ class DatabaseManagerAsync:
                     quantita_t REAL,
                     ore_raccolta REAL,
                     giorni_raccolta REAL,
+                    priorita REAL,
                     FOREIGN KEY (id_sim) REFERENCES simulazioni(id_sim)
                 )
             """)
@@ -194,6 +345,8 @@ class DatabaseManagerAsync:
     async def salva_simulazione(self, risultato, id_config):
         await self._init_db()
         async with aiosqlite.connect(self.db_path) as db:
+            ore_totali = risultato.get("ore_totali", risultato.get("tempo_totale_risorsa", 0))
+            giorni_totali = risultato.get("giorni_totali", risultato.get("giorni_risorsa", 0))
             cursor = await db.execute("""
                 INSERT INTO simulazioni 
                 (id_config, sequenza, evento_meteo, fattore_evento, 
@@ -204,20 +357,26 @@ class DatabaseManagerAsync:
                 risultato["sequenza"],
                 risultato["evento_meteo"],
                 risultato["fattore_evento"],
-                round(risultato["ore_totali"], 2),
-                risultato["giorni_totali"],
+                round(ore_totali, 2),
+                giorni_totali,
                 risultato["economia"]["profitto"],
                 risultato["economia"]["margine_profitto"]
             ))
             id_sim = cursor.lastrowid
             for prodotto, dati in risultato["tempi"].items():
+                priorita = None
+                for det in risultato.get("dettagli_priorita", []):
+                    if det["prodotto"] == prodotto:
+                        priorita = det["priorita"]
+                        break
                 await db.execute("""
                     INSERT INTO dettagli_simulazione 
-                    (id_sim, prodotto, quantita_t, ore_raccolta, giorni_raccolta)
-                    VALUES (?, ?, ?, ?, ?)
+                    (id_sim, prodotto, quantita_t, ore_raccolta, giorni_raccolta, priorita)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     id_sim, prodotto, dati["tonnellate"],
-                    dati["ore_lavorative"], dati["giorni_lavorativi"]
+                    dati["ore_lavorative"], dati["giorni_lavorativi"],
+                    priorita
                 ))
             await db.commit()
             return id_sim
@@ -234,28 +393,25 @@ class DatabaseManagerAsync:
             """)
             rows = await cursor.fetchall()
             if rows:
-                data = []
-                for row in rows:
-                    data.append(dict(row))
-                return pd.DataFrame(data)
+                return pd.DataFrame([dict(row) for row in rows])
             return pd.DataFrame()
 
     async def reset_database(self):
-        """Ripristina il database (elimina tutti i dati)."""
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
             self._initialized = False
             await self._init_db()
 
-# ==========================================
+
+# =========================================
 # INTERFACCIA GRAFICA
-# ==========================================
+# =========================================
 class AppAgricola:
     def __init__(self, root, loop):
         self.root = root
         self.loop = loop
-        self.root.title("🌾 Simulatore Agricolo - SQLite")
-        self.root.geometry("1200x750")
+        self.root.title("🌾 Simulatore Agricolo - SQLite con Risorsa Condivisa")
+        self.root.geometry("1250x800")
         self.db = DatabaseManagerAsync()
         self.simulatore = ProduzioneAgricola()
         self.risultato_corrente = None
@@ -277,22 +433,45 @@ class AppAgricola:
 
         self.tab_sim = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_sim, text="Simulazione")
+        self.tab_priorita = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_priorita, text="Priorità Risorsa")
         self.tab_storico = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_storico, text="Storico")
         self.tab_grafici = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_grafici, text="Grafici")
 
         self.build_tab_sim()
+        self.build_tab_priorita()
         self.build_tab_storico()
         self.build_tab_grafici()
-
         self.aggiorna_storico()
 
     # -------------------- TAB SIMULAZIONE --------------------
     def build_tab_sim(self):
         frame = self.tab_sim
+
+        # Frame risorsa condivisa (NUOVO)
+        risorsa_frame = ttk.LabelFrame(frame, text="Risorsa condivisa")
+        risorsa_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+
+        ttk.Label(risorsa_frame, text="Nome:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.entry_risorsa_nome = ttk.Entry(risorsa_frame, width=15)
+        self.entry_risorsa_nome.insert(0, "Mietitrebbia")
+        self.entry_risorsa_nome.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(risorsa_frame, text="Capacità (ore/giorno):").grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        self.entry_cap_risorsa = ttk.Entry(risorsa_frame, width=8)
+        self.entry_cap_risorsa.insert(0, "8")
+        self.entry_cap_risorsa.grid(row=0, column=3, padx=5, pady=5)
+
+        ttk.Label(risorsa_frame, text="Setup (ore):").grid(row=0, column=4, padx=5, pady=5, sticky="w")
+        self.entry_setup_risorsa = ttk.Entry(risorsa_frame, width=8)
+        self.entry_setup_risorsa.insert(0, "0.5")
+        self.entry_setup_risorsa.grid(row=0, column=5, padx=5, pady=5)
+
+        # Frame configurazione parametri
         cfg_frame = ttk.LabelFrame(frame, text="Parametri di configurazione")
-        cfg_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        cfg_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
 
         ttk.Label(cfg_frame, text="Capacità giornaliera (ore):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.entry_cap = ttk.Entry(cfg_frame, width=10)
@@ -307,45 +486,100 @@ class AppAgricola:
         self.var_meteo = tk.BooleanVar(value=True)
         ttk.Checkbutton(cfg_frame, text="Eventi meteo attivi", variable=self.var_meteo).grid(row=0, column=4, padx=10, pady=5)
 
-        sup_frame = ttk.LabelFrame(frame, text="Superfici (ettari)")
-        sup_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+        # Superfici
+        sup_frame = ttk.LabelFrame(frame, text="Superfici (ettari) e giorni scadenza")
+        sup_frame.grid(row=2, column=0, padx=10, pady=5, sticky="ew")
         self.entry_sup = {}
+        self.entry_scadenza = {}
         prodotti = ["grano", "pomodoro", "girasole"]
         for i, p in enumerate(prodotti):
-            ttk.Label(sup_frame, text=p.capitalize()+":").grid(row=0, column=i*2, padx=5, pady=5, sticky="w")
+            ttk.Label(sup_frame, text=p.capitalize()+":").grid(row=0, column=i*3, padx=5, pady=5, sticky="w")
             e = ttk.Entry(sup_frame, width=8)
             e.insert(0, str(self.simulatore.config["superficie_ettari"][p]))
-            e.grid(row=0, column=i*2+1, padx=5, pady=5)
+            e.grid(row=0, column=i*3+1, padx=5, pady=5)
             self.entry_sup[p] = e
+            ttk.Label(sup_frame, text="gg scad:").grid(row=0, column=i*3+2, padx=2, pady=5, sticky="w")
+            s = ttk.Entry(sup_frame, width=5)
+            s.insert(0, str(self.simulatore.config["giorni_scadenza"][p]))
+            s.grid(row=0, column=i*3+3, padx=5, pady=5)
+            self.entry_scadenza[p] = s
 
+        # Pulsanti
         btn_frame = ttk.Frame(frame)
-        btn_frame.grid(row=2, column=0, pady=15)
-        self.btn_avvia = ttk.Button(btn_frame, text="Avvia Simulazione", command=self.avvia_simulazione)
+        btn_frame.grid(row=3, column=0, pady=10)
+        self.btn_avvia = ttk.Button(btn_frame, text="▶ Avvia Simulazione", command=self.avvia_simulazione)
         self.btn_avvia.pack(side="left", padx=10)
-        self.btn_salva = ttk.Button(btn_frame, text="Salva su DB", command=self.salva_su_db)
+        self.btn_salva = ttk.Button(btn_frame, text="💾 Salva su DB", command=self.salva_su_db)
         self.btn_salva.pack(side="left", padx=10)
 
+        # Tabella risultati
         self.tree = ttk.Treeview(frame, columns=("Prodotto", "Quantità (t)", "Ore", "Giorni"), show="headings", height=5)
         self.tree.heading("Prodotto", text="Prodotto")
         self.tree.heading("Quantità (t)", text="Quantità (t)")
         self.tree.heading("Ore", text="Ore")
         self.tree.heading("Giorni", text="Giorni")
-        self.tree.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+        self.tree.grid(row=4, column=0, padx=10, pady=10, sticky="ew")
 
         self.label_riepilogo = ttk.Label(frame, text="", font=("Arial", 10, "bold"))
-        self.label_riepilogo.grid(row=4, column=0, pady=5)
+        self.label_riepilogo.grid(row=5, column=0, pady=5)
         self.label_economia = ttk.Label(frame, text="", font=("Arial", 10))
-        self.label_economia.grid(row=5, column=0, pady=5)
+        self.label_economia.grid(row=6, column=0, pady=5)
+
+    # -------------------- TAB PRIORITÀ RISORSA (NUOVO) --------------------
+    def build_tab_priorita(self):
+        frame = self.tab_priorita
+
+        ttk.Label(frame, text="Pianificazione allocazione risorsa condivisa",
+                  font=("Arial", 12, "bold")).pack(pady=10)
+
+        # Tabella priorità
+        self.tree_priorita = ttk.Treeview(
+            frame,
+            columns=("Prodotto", "Quantità (t)", "Valore orario (€/h)", "Giorni scadenza", "Priorità"),
+            show="headings", height=8
+        )
+        self.tree_priorita.heading("Prodotto", text="Prodotto")
+        self.tree_priorita.heading("Quantità (t)", text="Quantità (t)")
+        self.tree_priorita.heading("Valore orario (€/h)", text="Valore orario (€/h)")
+        self.tree_priorita.heading("Giorni scadenza", text="Giorni scadenza")
+        self.tree_priorita.heading("Priorità", text="Priorità")
+        self.tree_priorita.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ttk.Label(frame, text="Pianificazione temporale della risorsa",
+                  font=("Arial", 12, "bold")).pack(pady=10)
+
+        # Tabella pianificazione
+        self.tree_pianificazione = ttk.Treeview(
+            frame,
+            columns=("Prodotto", "Ore", "Setup (h)", "Inizio (h)", "Fine (h)"),
+            show="headings", height=5
+        )
+        self.tree_pianificazione.heading("Prodotto", text="Prodotto")
+        self.tree_pianificazione.heading("Ore", text="Ore")
+        self.tree_pianificazione.heading("Setup (h)", text="Setup (h)")
+        self.tree_pianificazione.heading("Inizio (h)", text="Inizio (h)")
+        self.tree_pianificazione.heading("Fine (h)", text="Fine (h)")
+        self.tree_pianificazione.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.label_risorsa = ttk.Label(frame, text="", font=("Arial", 10, "bold"))
+        self.label_risorsa.pack(pady=5)
+
+        ttk.Button(frame, text="▶ Esegui Simulazione con Risorsa",
+                   command=self.avvia_simulazione_con_risorsa).pack(pady=10)
 
     # -------------------- TAB STORICO --------------------
     def build_tab_storico(self):
         frame = self.tab_storico
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(pady=5)
-        ttk.Button(btn_frame, text="Aggiorna Storico", command=self.aggiorna_storico).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Reset Database", command=self.reset_database).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="🔄 Aggiorna Storico", command=self.aggiorna_storico).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="🗑️ Reset Database", command=self.reset_database).pack(side="left", padx=5)
 
-        self.tree_storico = ttk.Treeview(frame, columns=("ID", "Data", "Azienda", "Sequenza", "Evento", "Profitto (€)", "Margine %"), show="headings")
+        self.tree_storico = ttk.Treeview(
+            frame,
+            columns=("ID", "Data", "Azienda", "Sequenza", "Evento", "Profitto (€)", "Margine %"),
+            show="headings"
+        )
         self.tree_storico.heading("ID", text="ID")
         self.tree_storico.heading("Data", text="Data")
         self.tree_storico.heading("Azienda", text="Azienda")
@@ -358,10 +592,10 @@ class AppAgricola:
     # -------------------- TAB GRAFICI --------------------
     def build_tab_grafici(self):
         frame = self.tab_grafici
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10, 4))
+        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(11, 4))
         self.canvas = FigureCanvasTkAgg(self.fig, master=frame)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
-        ttk.Button(frame, text="Aggiorna Grafici", command=self.aggiorna_grafici).pack(pady=5)
+        ttk.Button(frame, text="🔄 Aggiorna Grafici", command=self.aggiorna_grafici).pack(pady=5)
 
     # -------------------- FUNZIONI DI LOGICA --------------------
     def avvia_simulazione(self):
@@ -373,11 +607,12 @@ class AppAgricola:
             self.simulatore.config["eventi_meteo_attivi"] = self.var_meteo.get()
             for p, entry in self.entry_sup.items():
                 self.simulatore.config["superficie_ettari"][p] = float(entry.get())
+                self.simulatore.config["giorni_scadenza"][p] = int(self.entry_scadenza[p].get())
         except ValueError:
             messagebox.showerror("Errore", "Inserisci valori numerici validi")
             return
 
-        self.btn_avvia.config(state="disabled", text="Simulazione in corso...")
+        self.btn_avvia.config(state="disabled", text="⏳ Simulazione in corso...")
         sequenza = "parallela" if messagebox.askyesno("Sequenza", "Usare sequenza PARALLELA?") else "sequenziale"
 
         async def esegui():
@@ -386,16 +621,88 @@ class AppAgricola:
 
         self.task_simulazione = asyncio.run_coroutine_threadsafe(esegui(), self.loop)
 
+    # NUOVO: simulazione con risorsa condivisa
+    def avvia_simulazione_con_risorsa(self):
+        try:
+            # Configura risorsa
+            self.simulatore.risorsa.nome = self.entry_risorsa_nome.get()
+            self.simulatore.risorsa.capacita_oraria = float(self.entry_cap_risorsa.get())
+            self.simulatore.risorsa.tempo_setup = float(self.entry_setup_risorsa.get())
+
+            # Configura parametri
+            self.simulatore.config["capacita_giornaliera_ore"] = float(self.entry_cap.get())
+            self.simulatore.config["costo_orario_manodopera"] = float(self.entry_mano.get())
+            self.simulatore.config["eventi_meteo_attivi"] = self.var_meteo.get()
+            for p, entry in self.entry_sup.items():
+                self.simulatore.config["superficie_ettari"][p] = float(entry.get())
+                self.simulatore.config["giorni_scadenza"][p] = int(self.entry_scadenza[p].get())
+        except ValueError:
+            messagebox.showerror("Errore", "Inserisci valori numerici validi")
+            return
+
+        risultato = self.simulatore.simula_con_risorsa(var_perc=20)
+        self.risultato_corrente = risultato
+
+        # Popola tabella priorità
+        for row in self.tree_priorita.get_children():
+            self.tree_priorita.delete(row)
+        for det in risultato["dettagli_priorita"]:
+            self.tree_priorita.insert("", "end", values=(
+                det["prodotto"].capitalize(),
+                det["quantita"],
+                det["valore_orario"],
+                det["giorni_scadenza"],
+                det["priorita"]
+            ))
+
+        # Popola tabella pianificazione
+        for row in self.tree_pianificazione.get_children():
+            self.tree_pianificazione.delete(row)
+        for pian in risultato["pianificazione_risorsa"]:
+            self.tree_pianificazione.insert("", "end", values=(
+                pian["prodotto"].capitalize(),
+                pian["ore_raccolta"],
+                pian["setup"],
+                pian["tempo_inizio"],
+                pian["tempo_fine"]
+            ))
+
+        self.label_risorsa.config(text=(
+            f"📌 Ordine di priorità: {' → '.join([p.capitalize() for p in risultato['ordine_prodotti']])}\n"
+            f"⏱️ Tempo totale risorsa: {risultato['tempo_totale_risorsa']:.2f} ore "
+            f"({risultato['giorni_risorsa']:.2f} giorni)"
+        ))
+
+        # Aggiorna anche la scheda Simulazione con i risultati
+        self._mostra_risultato(risultato)
+        messagebox.showinfo("Simulazione completata",
+                            "Simulazione con risorsa condivisa eseguita con successo!\n"
+                            "Controlla la scheda 'Priorità Risorsa' per i dettagli.")
+
     def _mostra_risultato(self, risultato):
         self.risultato_corrente = risultato
         for row in self.tree.get_children():
             self.tree.delete(row)
         for p, dati in risultato["tempi"].items():
-            self.tree.insert("", "end", values=(p.capitalize(), dati["tonnellate"], dati["ore_lavorative"], dati["giorni_lavorativi"]))
+            self.tree.insert("", "end", values=(
+                p.capitalize(), dati["tonnellate"],
+                dati["ore_lavorative"], dati["giorni_lavorativi"]
+            ))
 
         eco = risultato["economia"]
-        self.label_riepilogo.config(text=f"📌 Sequenza: {risultato['sequenza'].upper()}  |  Evento: {risultato['evento_meteo']}  |  Tempo totale: {risultato['ore_totali']:.2f} ore ({risultato['giorni_totali']} giorni)")
-        self.label_economia.config(text=f"💰 Ricavi: {eco['ricavi_totali']:.2f} €  |  Profitto: {eco['profitto']:.2f} €  |  Margine: {eco['margine_profitto']:.1f}%")
+        ore_tot = risultato.get("ore_totali", risultato.get("tempo_totale_risorsa", 0))
+        giorni_tot = risultato.get("giorni_totali", risultato.get("giorni_risorsa", 0))
+
+        self.label_riepilogo.config(text=(
+            f"📌 Sequenza: {risultato['sequenza'].upper()} | "
+            f"Evento: {risultato['evento_meteo']} | "
+            f"Tempo totale: {ore_tot:.2f} ore ({giorni_tot} giorni)"
+        ))
+        self.label_economia.config(text=(
+            f"💰 Ricavi: {eco['ricavi_totali']:.2f} € | "
+            f"Profitto: {eco['profitto']:.2f} € | "
+            f"Margine: {eco['margine_profitto']:.1f}%"
+        ))
         self.aggiorna_grafici()
         self.btn_avvia.config(state="normal", text="▶ Avvia Simulazione")
 
@@ -464,7 +771,8 @@ class AppAgricola:
         bars = self.ax1.bar(prodotti, quantita, color=colori, edgecolor="black")
         self.ax1.set_title("Quantità prodotte (tonnellate)")
         for bar, q in zip(bars, quantita):
-            self.ax1.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.5, f"{q:.1f}", ha='center', va='bottom', fontweight='bold')
+            self.ax1.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.5,
+                         f"{q:.1f}", ha='center', va='bottom', fontweight='bold')
 
         eco = self.risultato_corrente["economia"]
         labels = ["Ricavi", "Costi", "Profitto"]
@@ -473,7 +781,8 @@ class AppAgricola:
         bars2 = self.ax2.bar(labels, values, color=colori2, edgecolor="black")
         self.ax2.set_title("Analisi Economica (€)")
         for bar, v in zip(bars2, values):
-            self.ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 50, f"{v:.0f}", ha='center', va='bottom', fontweight='bold')
+            self.ax2.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 50,
+                         f"{v:.0f}", ha='center', va='bottom', fontweight='bold')
         self.canvas.draw()
 
     def esporta_report_pdf(self):
@@ -504,9 +813,11 @@ class AppAgricola:
         story.append(Paragraph(config_text, styles["Normal"]))
         story.append(Spacer(1, 12))
 
+        # Tabella dettagli
         data = [["Prodotto", "Quantità (t)", "Ore", "Giorni"]]
         for p, d in self.risultato_corrente["tempi"].items():
-            data.append([p.capitalize(), f"{d['tonnellate']:.2f}", f"{d['ore_lavorative']:.2f}", f"{d['giorni_lavorativi']:.2f}"])
+            data.append([p.capitalize(), f"{d['tonnellate']:.2f}",
+                         f"{d['ore_lavorative']:.2f}", f"{d['giorni_lavorativi']:.2f}"])
         table = Table(data)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.grey),
@@ -520,6 +831,7 @@ class AppAgricola:
         story.append(table)
         story.append(Spacer(1, 12))
 
+        # Analisi economica
         eco = self.risultato_corrente["economia"]
         econ_data = [
             ["Ricavi totali", f"{eco['ricavi_totali']:.2f} €"],
@@ -539,12 +851,56 @@ class AppAgricola:
         story.append(Paragraph("Analisi Economica:", styles["Heading4"]))
         story.append(econ_table)
 
+        # Sezione risorsa (se presente)
+        if "dettagli_priorita" in self.risultato_corrente:
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("Allocazione Risorsa Condivisa:", styles["Heading4"]))
+
+            # Tabella priorità
+            prior_data = [["Prodotto", "Quantità (t)", "Valore orario (€/h)", "Priorità"]]
+            for det in self.risultato_corrente["dettagli_priorita"]:
+                prior_data.append([
+                    det["prodotto"].capitalize(),
+                    f"{det['quantita']:.2f}",
+                    f"{det['valore_orario']:.2f}",
+                    f"{det['priorita']:.2f}"
+                ])
+            prior_table = Table(prior_data)
+            prior_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            story.append(prior_table)
+            story.append(Spacer(1, 6))
+
+            # Tabella pianificazione
+            pian_data = [["Prodotto", "Ore", "Setup (h)", "Inizio (h)", "Fine (h)"]]
+            for pian in self.risultato_corrente["pianificazione_risorsa"]:
+                pian_data.append([
+                    pian["prodotto"].capitalize(),
+                    f"{pian['ore_raccolta']:.2f}",
+                    f"{pian['setup']:.2f}",
+                    f"{pian['tempo_inizio']:.2f}",
+                    f"{pian['tempo_fine']:.2f}"
+                ])
+            pian_table = Table(pian_data)
+            pian_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.darkgreen),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            story.append(pian_table)
+
         doc.build(story)
         messagebox.showinfo("Report", f"Report salvato in {file_path}")
 
-# ==========================================
+
+# =========================================
 # AVVIO APPLICAZIONE
-# ==========================================
+# =========================================
 def run_app():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -559,6 +915,7 @@ def run_app():
     thread.start()
     root.mainloop()
     loop.call_soon_threadsafe(loop.stop)
+
 
 if __name__ == "__main__":
     run_app()
