@@ -493,15 +493,15 @@ class AppAgricola:
         self.entry_scadenza = {}
         prodotti = ["grano", "pomodoro", "girasole"]
         for i, p in enumerate(prodotti):
-            ttk.Label(sup_frame, text=p.capitalize()+":").grid(row=0, column=i*3, padx=5, pady=5, sticky="w")
+            ttk.Label(sup_frame, text=p.capitalize()+":").grid(row=i, column=0, padx=5, pady=5, sticky="w")
             e = ttk.Entry(sup_frame, width=8)
             e.insert(0, str(self.simulatore.config["superficie_ettari"][p]))
-            e.grid(row=0, column=i*3+1, padx=5, pady=5)
+            e.grid(row=i, column=1, padx=5, pady=5)
             self.entry_sup[p] = e
-            ttk.Label(sup_frame, text="gg scad:").grid(row=0, column=i*3+2, padx=2, pady=5, sticky="w")
+            ttk.Label(sup_frame, text="gg scad:").grid(row=i, column=2, padx=2, pady=5, sticky="w")
             s = ttk.Entry(sup_frame, width=5)
             s.insert(0, str(self.simulatore.config["giorni_scadenza"][p]))
-            s.grid(row=0, column=i*3+3, padx=5, pady=5)
+            s.grid(row=i, column=3, padx=5, pady=5)
             self.entry_scadenza[p] = s
 
         # Pulsanti
