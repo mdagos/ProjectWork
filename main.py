@@ -16,14 +16,14 @@ import threading
 import os
 
 # =========================================
-# CLASSE RISORSA CONDIVISA (NUOVA)
+# CLASSE RISORSA CONDIVISA
 # =========================================
 class RisorsaCondivisa:
     """
-    Modella una risorsa condivisa (es. mietitrebbia) con capacità limitata
+    Modella una risorsa condivisa con capacità limitata
     e sistema di priorità per l'allocazione tra i diversi prodotti.
     """
-    def __init__(self, nome="Mietitrebbia", capacita_oraria=8, tempo_setup=0.5):
+    def __init__(self, nome="Mezzo di raccolta", capacita_oraria=8, tempo_setup=0.5):
         self.nome = nome
         self.capacita_oraria = capacita_oraria
         self.tempo_setup = tempo_setup
@@ -188,7 +188,7 @@ class ProduzioneAgricola:
         }
 
     # =========================================
-    # NUOVO METODO: SIMULAZIONE CON RISORSA CONDIVISA
+    # SIMULAZIONE CON RISORSA CONDIVISA
     # =========================================
     def simula_con_risorsa(self, var_perc=20, evento=None):
         """
@@ -450,7 +450,7 @@ class AppAgricola:
     def build_tab_sim(self):
         frame = self.tab_sim
 
-        # Frame risorsa condivisa (NUOVO)
+        # Frame risorsa condivisa
         risorsa_frame = ttk.LabelFrame(frame, text="Risorsa condivisa")
         risorsa_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
 
@@ -525,7 +525,7 @@ class AppAgricola:
         self.label_economia = ttk.Label(frame, text="", font=("Arial", 10))
         self.label_economia.grid(row=6, column=0, pady=5)
 
-    # -------------------- TAB PRIORITÀ RISORSA (NUOVO) --------------------
+    # -------------------- TAB PRIORITÀ RISORSA --------------------
     def build_tab_priorita(self):
         frame = self.tab_priorita
 
@@ -572,8 +572,8 @@ class AppAgricola:
         frame = self.tab_storico
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(pady=5)
-        ttk.Button(btn_frame, text="🔄 Aggiorna Storico", command=self.aggiorna_storico).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="🗑️ Reset Database", command=self.reset_database).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Aggiorna Storico", command=self.aggiorna_storico).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Reset Database", command=self.reset_database).pack(side="left", padx=5)
 
         self.tree_storico = ttk.Treeview(
             frame,
@@ -595,7 +595,7 @@ class AppAgricola:
         self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(11, 4))
         self.canvas = FigureCanvasTkAgg(self.fig, master=frame)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
-        ttk.Button(frame, text="🔄 Aggiorna Grafici", command=self.aggiorna_grafici).pack(pady=5)
+        ttk.Button(frame, text="Aggiorna Grafici", command=self.aggiorna_grafici).pack(pady=5)
 
     # -------------------- FUNZIONI DI LOGICA --------------------
     def avvia_simulazione(self):
@@ -621,7 +621,7 @@ class AppAgricola:
 
         self.task_simulazione = asyncio.run_coroutine_threadsafe(esegui(), self.loop)
 
-    # NUOVO: simulazione con risorsa condivisa
+    # Simulazione con risorsa condivisa
     def avvia_simulazione_con_risorsa(self):
         try:
             # Configura risorsa
