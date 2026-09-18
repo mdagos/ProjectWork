@@ -456,7 +456,7 @@ class AppAgricola:
 
         ttk.Label(risorsa_frame, text="Nome:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.entry_risorsa_nome = ttk.Entry(risorsa_frame, width=15)
-        self.entry_risorsa_nome.insert(0, "Mietitrebbia")
+        self.entry_risorsa_nome.insert(0, "Mezzo di raccolta")
         self.entry_risorsa_nome.grid(row=0, column=1, padx=5, pady=5)
 
         ttk.Label(risorsa_frame, text="Capacità (ore/giorno):").grid(row=0, column=2, padx=5, pady=5, sticky="w")
@@ -739,7 +739,6 @@ class AppAgricola:
             if df.empty:
                 return
             for _, row in df.iterrows():
-                # Gestisce data_sim sia come stringa che come datetime
                 data_sim = row["data_sim"]
                 if hasattr(data_sim, 'strftime'):
                     data_str = data_sim.strftime("%d/%m/%Y %H:%M")
