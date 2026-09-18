@@ -229,7 +229,7 @@ class ProduzioneAgricola:
 
         risultato = {
             "timestamp": self.data_simulazione.isoformat(),
-            "sequenza": "con_risorsa",
+            "sequenza": "Risorsa Condivisa",
             "evento_meteo": evento[0],
             "fattore_evento": evento[1],
             "quantita": quantita,
@@ -244,12 +244,12 @@ class ProduzioneAgricola:
         self.storico.append(risultato)
         return risultato
 
-    async def simula(self, sequenza="parallela", var_perc=20):
+    async def simula(self, sequenza="Parallela", var_perc=20):
         await asyncio.sleep(0.3)
         evento = self.genera_evento_meteo()
         quantita, _ = self.genera_quantita_casuali(var_perc, evento)
         tempi = self.calcola_tempi(quantita)
-        if sequenza == "sequenziale":
+        if sequenza == "Sequenziale":
             ore_tot = sum(d["ore_lavorative"] for d in tempi.values())
         else:
             ore_tot = max(d["ore_lavorative"] for d in tempi.values())
@@ -507,9 +507,9 @@ class AppAgricola:
         # Pulsanti
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(row=3, column=0, pady=10)
-        self.btn_avvia = ttk.Button(btn_frame, text="▶ Avvia Simulazione", command=self.avvia_simulazione)
+        self.btn_avvia = ttk.Button(btn_frame, text="Avvia Simulazione", command=self.avvia_simulazione)
         self.btn_avvia.pack(side="left", padx=10)
-        self.btn_salva = ttk.Button(btn_frame, text="💾 Salva su DB", command=self.salva_su_db)
+        self.btn_salva = ttk.Button(btn_frame, text="Salva su DB", command=self.salva_su_db)
         self.btn_salva.pack(side="left", padx=10)
 
         # Tabella risultati
@@ -564,7 +564,7 @@ class AppAgricola:
         self.label_risorsa = ttk.Label(frame, text="", font=("Arial", 10, "bold"))
         self.label_risorsa.pack(pady=5)
 
-        ttk.Button(frame, text="▶ Esegui Simulazione con Risorsa",
+        ttk.Button(frame, text="Esegui Simulazione con Risorsa",
                    command=self.avvia_simulazione_con_risorsa).pack(pady=10)
 
     # -------------------- TAB STORICO --------------------
@@ -613,7 +613,7 @@ class AppAgricola:
             return
 
         self.btn_avvia.config(state="disabled", text="⏳ Simulazione in corso...")
-        sequenza = "parallela" if messagebox.askyesno("Sequenza", "Usare sequenza PARALLELA?") else "sequenziale"
+        sequenza = "Parallela" if messagebox.askyesno("Sequenza", "Usare sequenza PARALLELA?") else "Sequenziale"
 
         async def esegui():
             risultato = await self.simulatore.simula(sequenza=sequenza, var_perc=20)
@@ -668,8 +668,8 @@ class AppAgricola:
             ))
 
         self.label_risorsa.config(text=(
-            f"📌 Ordine di priorità: {' → '.join([p.capitalize() for p in risultato['ordine_prodotti']])}\n"
-            f"⏱️ Tempo totale risorsa: {risultato['tempo_totale_risorsa']:.2f} ore "
+            f"Ordine di priorità: {' → '.join([p.capitalize() for p in risultato['ordine_prodotti']])}\n"
+            f"Tempo totale risorsa: {risultato['tempo_totale_risorsa']:.2f} ore "
             f"({risultato['giorni_risorsa']:.2f} giorni)"
         ))
 
@@ -694,17 +694,17 @@ class AppAgricola:
         giorni_tot = risultato.get("giorni_totali", risultato.get("giorni_risorsa", 0))
 
         self.label_riepilogo.config(text=(
-            f"📌 Sequenza: {risultato['sequenza'].upper()} | "
+            f"Sequenza: {risultato['sequenza'].upper()} | "
             f"Evento: {risultato['evento_meteo']} | "
             f"Tempo totale: {ore_tot:.2f} ore ({giorni_tot} giorni)"
         ))
         self.label_economia.config(text=(
-            f"💰 Ricavi: {eco['ricavi_totali']:.2f} € | "
+            f"Ricavi: {eco['ricavi_totali']:.2f} € | "
             f"Profitto: {eco['profitto']:.2f} € | "
             f"Margine: {eco['margine_profitto']:.1f}%"
         ))
         self.aggiorna_grafici()
-        self.btn_avvia.config(state="normal", text="▶ Avvia Simulazione")
+        self.btn_avvia.config(state="normal", text="Avvia Simulazione")
 
     def salva_su_db(self):
         if self.risultato_corrente is None:
@@ -733,20 +733,32 @@ class AppAgricola:
         asyncio.run_coroutine_threadsafe(do_load(), self.loop)
 
     def _popola_storico(self, df):
-        for row in self.tree_storico.get_children():
-            self.tree_storico.delete(row)
-        if df.empty:
-            return
-        for _, row in df.iterrows():
-            self.tree_storico.insert("", "end", values=(
-                row["id_sim"],
-                row["data_sim"].strftime("%d/%m/%Y %H:%M"),
-                row["nome_azienda"],
-                row["sequenza"],
-                row["evento_meteo"],
-                f"{row['profitto']:.2f}",
-                f"{row['margine']:.1f}"
-            ))
+        try:
+            for row in self.tree_storico.get_children():
+                self.tree_storico.delete(row)
+            if df.empty:
+                return
+            for _, row in df.iterrows():
+                # Gestisce data_sim sia come stringa che come datetime
+                data_sim = row["data_sim"]
+                if hasattr(data_sim, 'strftime'):
+                    data_str = data_sim.strftime("%d/%m/%Y %H:%M")
+                else:
+                    data_str = str(data_sim)
+
+                self.tree_storico.insert("", "end", values=(
+                    row["id_sim"],
+                    data_str,
+                    row["nome_azienda"],
+                    row["sequenza"],
+                    row["evento_meteo"],
+                    f"{row['profitto']:.2f}" if pd.notna(row['profitto']) else "",
+                    f"{row['margine']:.1f}" if pd.notna(row['margine']) else ""
+                ))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Errore popolamento storico", f"{type(e).__name__}: {str(e)}")
 
     def reset_database(self):
         if messagebox.askyesno("Conferma", "Eliminare tutti i dati salvati nel database?"):
