@@ -612,7 +612,7 @@ class AppAgricola:
             messagebox.showerror("Errore", "Inserisci valori numerici validi")
             return
 
-        self.btn_avvia.config(state="disabled", text="⏳ Simulazione in corso...")
+        self.btn_avvia.config(state="disabled", text="Simulazione in corso...")
         sequenza = "Parallela" if messagebox.askyesno("Sequenza", "Usare sequenza PARALLELA?") else "Sequenziale"
 
         async def esegui():
@@ -930,3 +930,4 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
